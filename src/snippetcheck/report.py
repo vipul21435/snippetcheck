@@ -12,6 +12,8 @@ from .records import BadLine
 from .rules import RULES
 
 Z95 = 1.959963984540054
+UNIT_LABELS = {"asks-language": "answers to a one-language prompt",
+               "asks-code": "answers to a code request", "block": "blocks"}
 
 
 def wilson_interval(k: int, n: int, z: float = Z95) -> tuple[float, float]:
@@ -58,10 +60,12 @@ class Summary:
     units: Counter = field(default_factory=Counter)
     rules: dict[str, RuleStat] = field(default_factory=dict)
     details: dict[str, Counter] = field(default_factory=dict)
+    skipped: Counter = field(default_factory=Counter)
+    by_language: dict[str, Counter] = field(default_factory=dict)
 
 
 def _units_of(block: BlockResult) -> list[str]:
-    units = []
+    units = ["block"]
     if block.checker is not None:
         units.append("checked")
         units.append(block.checker)
@@ -87,7 +91,13 @@ def summarise(results: Iterable[RecordResult | BadLine], max_examples: int = 5) 
             summary.kinds[block.block.kind] += 1
             for unit in _units_of(block):
                 summary.units[unit] += 1
+            for note in block.notes:
+                if note.startswith("skipped: "):
+                    summary.skipped[note[len("skipped: "):]] += 1
+            lang = block.block.lang or "unknown"
+            per_lang = summary.by_language.setdefault(lang, Counter())
             for rule_id in {f.rule for f in block.findings}:
+                per_lang[rule_id] += 1
                 stat = summary.rules[rule_id]
                 stat.count += 1
                 if len(stat.examples) < max_examples:
@@ -95,6 +105,15 @@ def summarise(results: Iterable[RecordResult | BadLine], max_examples: int = 5) 
             for finding in block.findings:
                 if finding.detail:
                     summary.details[finding.rule][finding.detail] += 1
+        for check in item.turn_checks:
+            summary.units[check.unit] += 1
+            if check.finding is not None:
+                stat = summary.rules[check.finding.rule]
+                stat.count += 1
+                if len(stat.examples) < max_examples:
+                    stat.examples.append(f"{item.record.id}#{check.turn}")
+                if check.finding.detail:
+                    summary.details[check.finding.rule][check.finding.detail] += 1
     for stat in summary.rules.values():
         stat.units = summary.units[RULES[stat.rule].unit]
     return summary
@@ -107,6 +126,9 @@ def to_json(summary: Summary, top: int = 10) -> dict:
         "turns": summary.turns,
         "blocks": summary.blocks,
         "languages": dict(summary.languages.most_common()),
+        "skipped": dict(summary.skipped.most_common()),
+        "by_language": {lang: {"blocks": summary.languages[lang], **dict(c)}
+                        for lang, c in summary.by_language.items()},
         "kinds": dict(summary.kinds.most_common()),
         "rules": {
             rule_id: {
@@ -131,7 +153,7 @@ def _pct(x: float) -> str:
     return f"{100 * x:.1f} %"
 
 
-def to_markdown(summary: Summary, top: int = 5) -> str:
+def to_markdown(summary: Summary, top: int = 8) -> str:
     out = [
         "# snippetcheck report",
         "",
@@ -148,15 +170,27 @@ def to_markdown(summary: Summary, top: int = 5) -> str:
         unit = RULES[rule_id].unit
         ci = f"{_pct(lo)} to {_pct(hi)}" if stat.units else "n/a"
         examples = ", ".join(stat.examples)
-        out.append(f"| {rule_id} | {stat.count} | {stat.units} {unit} blocks | "
+        over = f"{stat.units} {UNIT_LABELS.get(unit, unit + ' blocks')}"
+        out.append(f"| {rule_id} | {stat.count} | {over} | "
                    f"{_pct(stat.share)} | {ci} | {examples} |")
-    out += ["", "## Languages", "", "| language | blocks |", "|---|---:|"]
+    out += ["", "## Languages", "", "| language | blocks | blocks with a finding, by rule |",
+            "|---|---:|---|"]
     for lang, count in summary.languages.most_common():
-        out.append(f"| {lang} | {count} |")
-    syntax = summary.details.get("py-syntax", Counter())
-    if syntax:
-        out += ["", "## Most common Python syntax errors", "", "| error | blocks |", "|---|---:|"]
-        for key, count in syntax.most_common(top):
-            out.append(f"| {_cell(key)} | {count} |")
-    out += ["", "Examples are record id#answer.block, all 0-based after the record id."]
+        per = summary.by_language.get(lang, Counter())
+        rules = ", ".join(f"{r} {n}" for r, n in per.most_common()) or "-"
+        out.append(f"| {lang} | {count} | {rules} |")
+    if summary.skipped:
+        out += ["", "## Skipped blocks", "", "| reason | blocks |", "|---|---:|"]
+        for reason, count in summary.skipped.most_common():
+            out.append(f"| {_cell(reason)} | {count} |")
+    for rule_id, title in (("py-syntax", "Most common Python syntax errors"),
+                           ("py-undefined-name", "Most common undefined names"),
+                           ("lang-mismatch", "Language mismatches by language asked for")):
+        details = summary.details.get(rule_id, Counter())
+        if details:
+            out += ["", f"## {title}", "", "| key | count |", "|---|---:|"]
+            for key, count in details.most_common(top):
+                out.append(f"| {_cell(key)} | {count} |")
+    out += ["", "Examples are record id#answer.block (block rules) or record id#answer "
+            "(prompt rules), 0-based after the record id."]
     return "\n".join(out) + "\n"

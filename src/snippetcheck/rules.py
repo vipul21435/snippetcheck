@@ -95,6 +95,56 @@ _RULES = [
         "makes the code parse.",
     ),
     Rule(
+        "shell-syntax",
+        "shell",
+        "A shell block fails bash -n.",
+        "bash -n reads the script without running any command. '$ ' prompts are removed and "
+        "the output lines of a console session blanked first. Skipped, and reported as "
+        "skipped, when bash is not installed. zsh-only syntax is reported as an error.",
+    ),
+    Rule(
+        "js-syntax",
+        "javascript",
+        "A JavaScript block fails node --check.",
+        "node --check compiles the file without running it; a block with import/export "
+        "statements or top-level await is checked as an ES module, anything else as "
+        "CommonJS. JSX and TypeScript are not sent to node. Skipped, and reported as "
+        "skipped, when node is not installed.",
+    ),
+    Rule(
+        "unbalanced-brackets",
+        "balance",
+        "A block in another language has unbalanced brackets or an open string.",
+        "For C, C++, C#, Java, Go, Rust, TypeScript, JSX, Kotlin, Swift, Scala, PHP, Dart, CSS, "
+        "Ruby, Perl, R, Julia and PowerShell, only brackets, strings and comments are "
+        "scanned: this is a balance check, not a parse.",
+    ),
+    Rule(
+        "lang-mismatch",
+        "asks-language",
+        "The prompt names one language and the code blocks are in another.",
+        "Counted over answers whose prompt names exactly one language and that contain a "
+        "block in a main language (shell, JSON, YAML, plain text and similar blocks are "
+        "ignored). C and C++ are accepted for each other, as are JavaScript, TypeScript "
+        "and JSX; HTML accepts CSS and JavaScript blocks.",
+    ),
+    Rule(
+        "no-code",
+        "asks-code",
+        "The prompt asks for code and the answer has no code block.",
+        "A prompt asks for code when a verb such as write, create or implement is followed "
+        "within a clause by function, program, script, code, class, query and similar "
+        "nouns. An answer that is entirely code counts as having a block.",
+    ),
+    Rule(
+        "duplicate-block",
+        "block",
+        "A code block repeats a block of an earlier record.",
+        "Blocks are compared after removing trailing whitespace; blocks under three "
+        "non-blank lines are not compared. The first occurrence is not flagged, so --fix "
+        "with this rule keeps one copy.",
+    ),
+    Rule(
         "json-invalid",
         "json",
         "A JSON block does not parse.",
