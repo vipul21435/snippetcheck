@@ -199,8 +199,13 @@ class PythonResult:
 
 
 def check_python(code: str) -> PythonResult:
-    """Run the Python checks on one block."""
-    prep = prepare(code)
+    """Run the Python checks on one block.
+
+    The block is parsed as it is first; the transcript and magic rewrites of
+    :func:`prepare` are applied only when that fails, so valid Python is never changed.
+    """
+    plain = textwrap.dedent(code.replace("\r\n", "\n"))
+    prep = Prepared(plain) if _parses(plain) else prepare(code)
     if prep.skip:
         return PythonResult([], prep.notes, skip=prep.skip)
     src = prep.source

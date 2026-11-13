@@ -214,3 +214,12 @@ def test_deep_but_valid_code_does_not_abort(code):
     result = check_python(code)
     assert "skipped: scope analysis (expression nested too deeply)" in result.notes
     assert not any(f.rule == "py-syntax" for f in result.findings)
+
+
+def test_valid_python_is_not_rewritten():
+    code = 'name = "x"\nmsg = ("Hello %s"\n       %name)'
+    result = check_python(code)
+    assert result.findings == [] and result.notes == []
+    doc = 'def f(x):\n    """Double x.\n\n>>> f(1)\n2\n    """\n    return 2 * x'
+    result = check_python(doc)
+    assert result.findings == [] and result.notes == []
