@@ -207,9 +207,9 @@ statement` 45. Most common undefined names: `arr`, `string`, `n`, `np`, `num` in
 
 **False positives of the undefined-name check.** 50 of the 1,978 undefined-name findings in
 CodeAlpaca were drawn at random (`python scripts/sample_flags.py
-data/code_alpaca_20k.json py-undefined-name --n 50 --seed 0`) and read by hand by the
-author: for each, the prompt (instruction and input) and the numbered code were read and the
-flagged name looked up in both. The verdicts are in
+data/code_alpaca_20k.json py-undefined-name --n 50 --seed 0`) and read one by one: for
+each, the prompt (instruction and input) and the numbered code were read and the flagged
+name looked up in both. The verdicts are in
 [results/codealpaca-undefined-sample.csv](results/codealpaca-undefined-sample.csv):
 
 - 1 of 50 (2 %, 95 % CI 0.4 to 10.5 %) is an error of the analysis: a pasted output line
