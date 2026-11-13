@@ -51,8 +51,8 @@ def test_unterminated_fence_finding():
     assert result.checker == "python"
 
 
-def test_shell_block_has_no_checker_yet():
-    [block] = extract_blocks(f"{FENCE}bash\nls -a\n{FENCE}")
+def test_markdown_block_has_no_checker():
+    [block] = extract_blocks(f"{FENCE}markdown\n# Title\n{FENCE}")
     assert check_block(block).checker is None
 
 

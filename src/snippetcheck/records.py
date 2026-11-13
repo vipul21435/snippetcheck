@@ -40,6 +40,7 @@ class Record:
     line: int
     shape: str
     turns: tuple[Turn, ...]
+    raw: str = ""  # the input line, for writing a filtered copy
 
 
 @dataclass(frozen=True)
@@ -141,4 +142,29 @@ def read_jsonl(lines: Iterable[str], field: str | None = None,
         if not isinstance(obj, dict):
             yield BadLine(number, "line is not a JSON object")
             continue
-        yield to_record(obj, number, field, prompt_field)
+        item = to_record(obj, number, field, prompt_field)
+        if isinstance(item, Record):
+            item = Record(item.id, item.line, item.shape, item.turns, raw.rstrip("\n"))
+        yield item
+
+
+def iter_lines(handle: Iterable[str]) -> Iterator[str]:
+    """Yield JSONL lines; a file holding one JSON array yields one line per element."""
+    iterator = iter(handle)
+    head: list[str] = []
+    for line in iterator:
+        head.append(line)
+        if line.strip():
+            break
+    if head and head[-1].lstrip().startswith("["):
+        text = "".join(head) + "".join(iterator)
+        try:
+            items = json.loads(text)
+        except ValueError:
+            yield from text.splitlines()
+            return
+        for item in items if isinstance(items, list) else [items]:
+            yield json.dumps(item, ensure_ascii=False)
+        return
+    yield from head
+    yield from iterator
