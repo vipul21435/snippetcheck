@@ -105,3 +105,26 @@ def test_guess_language_cases():
     assert guess_language("SELECT name FROM users WHERE id = 3;") == "sql"
     assert guess_language("$ pip install requests") == "shell"
     assert guess_language("hello there") == ""
+
+
+def test_unfenced_code_with_blank_line_is_taken_whole():
+    text = "class A:\n\n    def f(self):\n        return 1\n"
+    [block] = extract_blocks(text)
+    assert block.kind == "whole"
+    assert block.code.startswith("class A:")
+    text = "import os\ndef main():\n\n    print(os.getcwd())\n\nmain()"
+    [block] = extract_blocks(text)
+    assert block.kind == "whole" and block.lang == "python"
+    assert "import os" in block.code
+
+
+def test_short_python_answer_is_code():
+    [block] = extract_blocks("x = 5")
+    assert block.kind == "whole" and block.lang == "python"
+    assert extract_blocks("Yes") == []
+    assert extract_blocks("42") == []
+
+
+def test_indented_block_needs_a_prose_paragraph_before_it():
+    text = "Here is the loop.\ndef f():\n\n    return 1\n\nThat is all, really."
+    assert extract_blocks(text) == []

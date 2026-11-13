@@ -8,20 +8,30 @@ Three kinds of block are recognised, in this order:
   Unlike CommonMark, a fence may be indented by any amount (list items in model output
   often indent fences by four or more spaces); the opening indent is removed from the
   content lines.
-* indented blocks (four spaces or a tab) that follow a blank line and are not the
-  continuation of a list item, outside any fence.
-* the whole answer, when it has no blocks of the first two kinds and reads as code.
+* the whole answer, when it has no fenced block and either parses as Python (with at
+  least one statement that is more than a bare name or constant) or reads as code. This
+  test comes before indented blocks, so the indented body of an unfenced function is
+  never cut out of its answer.
+* indented blocks (four spaces or a tab) that follow a blank line after a prose
+  paragraph, outside any fence and not inside a list item.
 """
 
 from __future__ import annotations
 
+import ast
 import re
+import textwrap
+import warnings
 from dataclasses import dataclass
 
 from .lang import guess_language, looks_like_code, normalise_info
 
 _FENCE_OPEN = re.compile(r"^(?P<indent>[ \t]*)(?P<fence>`{3,}|~{3,})(?P<info>.*)$")
 _LIST_ITEM = re.compile(r"^\s*([-*+]|\d+[.)])\s+\S")
+_CODE_START = re.compile(
+    r"^\s*(def|class|if|elif|else|for|while|with|try|except|finally|import|from|return|"
+    r"async|function|const|let|var|public|private|protected|static|int|void|#include|@)\b"
+)
 
 
 @dataclass(frozen=True)
@@ -53,11 +63,12 @@ def _strip_indent(line: str, indent: str) -> str:
     return line[n:]
 
 
-def _make_block(code: str, kind: str, info: str, start: int, terminated: bool = True) -> Block:
+def _make_block(code: str, kind: str, info: str, start: int, terminated: bool = True,
+                fallback: str = "") -> Block:
     lang = normalise_info(info)
     source = "info" if lang else "none"
     if not lang:
-        lang = guess_language(code)
+        lang = guess_language(code) or fallback
         source = "heuristic" if lang else "none"
     return Block(code=code, kind=kind, info=info, lang=lang, lang_source=source,
                  start_line=start, terminated=terminated)
@@ -101,6 +112,28 @@ def _is_indented(line: str) -> bool:
     return line.startswith("    ") or line.startswith("\t")
 
 
+def _is_prose(line: str) -> bool:
+    """A line of a prose paragraph, as opposed to a line of code."""
+    text = line.strip()
+    if not text or _CODE_START.match(text) or _LIST_ITEM.match(line):
+        return False
+    if len(re.findall(r"[A-Za-z]{2,}", text)) < 2 or text[-1] in "{;(,=\\[":
+        return False
+    return not (re.search(r"[=;{}]", text) and not re.search(r"[.?!:]$", text))
+
+
+def parses_as_python(text: str) -> bool:
+    """True when ``text`` parses and holds more than bare names or constants."""
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tree = ast.parse(textwrap.dedent(text))
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
+        return False
+    return any(not (isinstance(stmt, ast.Expr) and isinstance(stmt.value, (ast.Name, ast.Constant)))
+               for stmt in tree.body)
+
+
 def _indented(lines: list[str], taken: list[bool]) -> list[Block]:
     blocks: list[Block] = []
     i = 0
@@ -111,8 +144,9 @@ def _indented(lines: list[str], taken: list[bool]) -> list[Block]:
             not taken[i]
             and _is_indented(line)
             and line.strip()
-            and (i == 0 or not lines[i - 1].strip())
-            and not _LIST_ITEM.match(prev_text)
+            and i > 0
+            and not lines[i - 1].strip()
+            and _is_prose(prev_text)
             and not _is_indented(prev_text)
         )
         if not starts_block:
@@ -138,10 +172,12 @@ def extract_blocks(text: str) -> list[Block]:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     lines = text.split("\n")
     fenced, taken = _fenced(lines)
+    if not fenced and text.strip():
+        python = parses_as_python(text)
+        if python or looks_like_code(text):
+            stripped = text.strip("\n")
+            first = len(text) - len(text.lstrip("\n"))
+            return [_make_block(stripped, "whole", "", text[:first].count("\n") + 1,
+                                fallback="python" if python else "")]
     indented = _indented(lines, taken)
-    blocks = sorted(fenced + indented, key=lambda b: b.start_line)
-    if not blocks and looks_like_code(text):
-        stripped = text.strip("\n")
-        first = len(text) - len(text.lstrip("\n"))
-        blocks.append(_make_block(stripped, "whole", "", text[:first].count("\n") + 1))
-    return blocks
+    return sorted(fenced + indented, key=lambda b: b.start_line)

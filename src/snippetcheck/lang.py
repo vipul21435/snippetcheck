@@ -180,6 +180,7 @@ def guess_language(code: str) -> str:
 
 
 _PROSE_LINE = re.compile(r"^[A-Z][^(){};=<>\[\]]*[.?!:]$")
+_SHORT_PROSE = re.compile(r"^[A-Z][a-z]+( [\w']+)*[.:!?]$")
 _CODE_CHARS = re.compile(r"[(){};=\[\]<>]|^\s*(#|//|\$ )|^\s+\S")
 
 
@@ -197,6 +198,6 @@ def looks_like_code(text: str) -> bool:
         words = line.split()
         if _PROSE_LINE.match(line.strip()) and len(words) >= 4:
             continue
-        if _CODE_CHARS.search(line) or len(words) <= 3:
+        if _CODE_CHARS.search(line) or (len(words) <= 3 and not _SHORT_PROSE.match(line.strip())):
             code_like += 1
     return code_like / len(lines) >= 0.7
