@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "snippetcheck"
+version = "0.1.0"
+description = "Static checks for the code inside instruction and chat datasets: syntax, truncation, Python 2, wrong language."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Vipul Raj Jha" }]
+dependencies = []
+keywords = ["dataset", "code", "static-analysis", "instruction-tuning", "data-quality"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "pytest-cov>=4", "ruff>=0.5"]
+
+[project.scripts]
+snippetcheck = "snippetcheck.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/vipul21435/snippetcheck"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/snippetcheck"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
