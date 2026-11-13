@@ -20,10 +20,17 @@ class Syntax:
     quotes: str = "\"'"
     triple: bool = True
     line_comments: tuple[str, ...] = ("#",)
+    block_comments: tuple[tuple[str, str], ...] = ()
 
 
 PYTHON = Syntax()
 JSON = Syntax(quotes='"', triple=False, line_comments=())
+C_LIKE = Syntax(quotes="\"'", triple=False, line_comments=("//",),
+                block_comments=(("/*", "*/"),))
+JS_LIKE = Syntax(quotes="\"'`", triple=False, line_comments=("//",),
+                 block_comments=(("/*", "*/"),))
+RUST = Syntax(quotes='"', triple=False, line_comments=("//",), block_comments=(("/*", "*/"),))
+HASH_COMMENT = Syntax(quotes="\"'", triple=False, line_comments=("#",))
 
 
 @dataclass
@@ -52,6 +59,13 @@ def scan(src: str, syntax: Syntax = PYTHON) -> ScanResult:
     i, n = 0, len(src)
     while i < n:
         ch = src[i]
+        block = next((b for b in syntax.block_comments if src.startswith(b[0], i)), None)
+        if block is not None:
+            end = src.find(block[1], i + len(block[0]))
+            end = n if end == -1 else end + len(block[1])
+            out.append("".join("\n" if c == "\n" else " " for c in src[i:end]))
+            i = end
+            continue
         comment = next((c for c in syntax.line_comments if src.startswith(c, i)), None)
         if comment is not None:
             end = src.find("\n", i)
