@@ -119,6 +119,9 @@ def test_truncation_detected(code, reason):
         "print(foo(1)\nx = 2\ny = 3\nz = 4",  # missing paren in the middle
         "x = = 1\ny = 2",
         "def f(:\n    return 1",
+        "def f():\n    return 1\nThis function doesn't do much",
+        "def f():\n    # the body goes here",
+        "for x in items:\n    total +=\nprint(total)\nThe loop adds every item to the total.",
     ],
 )
 def test_broken_but_not_truncated(code):

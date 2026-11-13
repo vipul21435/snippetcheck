@@ -112,7 +112,7 @@ def _is_indented(line: str) -> bool:
     return line.startswith("    ") or line.startswith("\t")
 
 
-def _is_prose(line: str) -> bool:
+def is_prose(line: str) -> bool:
     """A line of a prose paragraph, as opposed to a line of code."""
     text = line.strip()
     if not text or _CODE_START.match(text) or _LIST_ITEM.match(line):
@@ -146,7 +146,7 @@ def _indented(lines: list[str], taken: list[bool]) -> list[Block]:
             and line.strip()
             and i > 0
             and not lines[i - 1].strip()
-            and _is_prose(prev_text)
+            and is_prose(prev_text)
             and not _is_indented(prev_text)
         )
         if not starts_block:

@@ -10,6 +10,7 @@ import tokenize
 import warnings
 from dataclasses import dataclass, field
 
+from .extract import is_prose
 from .rules import Finding
 from .scan import ScanResult, scan
 from .scope import PYTHON2_BUILTINS, analyse
@@ -149,17 +150,26 @@ def truncation_reason(src: str, error_line: int | None,
     last = max((i for i, line in enumerate(masked_lines, 1) if line.strip()), default=0)
     if last == 0:
         return None
+    tail = masked_lines[last - 1].rstrip()
+    if is_prose(tail):
+        return None  # prose after the code, not code that stops
     if res.open_string is not None:
+        if is_prose(masked_lines[res.open_string[1] - 1]):
+            return None  # an apostrophe in a sentence
         return "ends inside a string", res.open_string[1]
     if res.broken_strings and res.broken_strings[-1][0] == last:
         return "ends inside a string", last
     if res.open_brackets and not res.mismatched:
-        if _closing_brackets_parses(src, res) or res.open_brackets[-1][1] == last:
-            return "ends with brackets still open", res.open_brackets[-1][1]
+        innermost = res.open_brackets[-1][1]
+        if _closing_brackets_parses(src, res) or (
+                innermost == last and (error_line is None or error_line >= innermost)):
+            return "ends with brackets still open", innermost
         return None
     if error_line is not None and error_line < last:
         return None
-    tail = masked_lines[last - 1].rstrip()
+    src_last = max((i for i, line in enumerate(src.split("\n"), 1) if line.strip()), default=0)
+    if src_last != last:
+        return None  # comments follow the last code line, so the text did not stop there
     if _HEADER.match(tail):
         return "ends after a block header with no body", last
     if _DANGLING.search(tail):
