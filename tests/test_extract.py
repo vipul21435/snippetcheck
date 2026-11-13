@@ -128,3 +128,16 @@ def test_short_python_answer_is_code():
 def test_indented_block_needs_a_prose_paragraph_before_it():
     text = "Here is the loop.\ndef f():\n\n    return 1\n\nThat is all, really."
     assert extract_blocks(text) == []
+
+
+def test_more_unfenced_languages_are_taken_whole():
+    cases = {
+        "int add(int a, int b) {\n    return a + b;\n}": "c",
+        "def greet(name)\n  puts \"Hello #{name}\"\nend": "ruby",
+        ".box {\n  color: red;\n  margin: 0 auto;\n}": "css",
+        "my $total = 0;\nforeach my $n (@nums) {\n  $total += $n;\n}": "perl",
+        "SELECT name, age\nFROM users\nWHERE age > 18;": "sql",
+    }
+    for text, lang in cases.items():
+        [block] = extract_blocks(text)
+        assert (block.kind, block.lang) == ("whole", lang), text

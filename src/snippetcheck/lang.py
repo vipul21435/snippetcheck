@@ -134,6 +134,30 @@ _CUES: dict[str, list[tuple[re.Pattern[str], float]]] = {
         (re.compile(r"\bprintf\s*\("), 1.5),
         (re.compile(r"\bint\s+main\s*\("), 1.5),
         (re.compile(r"\bmalloc\s*\(|\bfree\s*\("), 1.5),
+        (re.compile(r"^\s*(static\s+)?(int|void|char|float|double|long|unsigned|bool|size_t)"
+                    r"\s+\*?\w+\s*\([^;]*\)\s*\{?\s*$", re.M), 2.0),
+    ],
+    "ruby": [
+        (re.compile(r"^\s*def \w+[!?]?(\(.*\))?\s*$", re.M), 1.5),
+        (re.compile(r"^\s*end\s*$", re.M), 2.0),
+        (re.compile(r"^\s*puts\b", re.M), 1.5),
+        (re.compile(r"\.each(_with_index)? do\b|\bdo \|\w+(, *\w+)*\|"), 2.0),
+    ],
+    "css": [
+        (re.compile(r"^\s*[.#]?[A-Za-z][\w-]*([\s,>+~]+[.#]?[\w-]+)*\s*\{\s*$", re.M), 1.5),
+        (re.compile(r"^\s*[a-z-]+\s*:\s*[^;{}]+;\s*$", re.M), 2.0),
+    ],
+    "perl": [
+        (re.compile(r"\bmy\s+[$@%]\w+"), 3.0),
+        (re.compile(r"^\s*use (strict|warnings);", re.M), 3.0),
+    ],
+    "scala": [
+        (re.compile(r"^\s*object \w+", re.M), 2.0),
+        (re.compile(r"\bdef \w+\(.*\)\s*:\s*\w+.*="), 2.0),
+    ],
+    "vhdl": [
+        (re.compile(r"\bentity \w+ is\b", re.I), 3.0),
+        (re.compile(r"\barchitecture \w+ of\b", re.I), 3.0),
     ],
     "sql": [
         (re.compile(r"^\s*SELECT\b[\s\S]*?\bFROM\b", re.M | re.I), 3.0),
