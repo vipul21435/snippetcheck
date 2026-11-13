@@ -2,8 +2,9 @@
 
     python scripts/sample_flags.py DATA.json RULE [--n 50] [--seed 0]
 
-Prints, for each sampled finding: record id, the finding, the prompt (lines starting
-"> ") and the code with line numbers.
+Prints, for each sampled finding: record id, the finding, which block it is in, the
+prompt (lines starting "> ") and the full answer with line numbers, so that lines the
+extractor left out of the block can be seen.
 Nothing from the dataset is executed.
 """
 
@@ -40,11 +41,14 @@ def main() -> None:
     sample = rng.sample(flagged, min(args.n, len(flagged)))
     print(f"# {len(flagged)} findings of {args.rule}; sample of {len(sample)}, seed {args.seed}")
     for k, (record, block, finding) in enumerate(sample, 1):
-        prompt = record.turns[block.turn].prompt
-        print(f"\n## {k}. record {record.id}: {finding.message}")
-        for line in prompt.split("\n"):
+        turn = record.turns[block.turn]
+        print(f"\n## {k}. record {record.id}: {finding.message} "
+              f"({block.block.kind} {block.block.lang or 'unknown'} block "
+              f"{block.index}, from answer line {block.block.start_line})")
+        for line in turn.prompt.split("\n"):
             print(f"> {line}")
-        for n, line in enumerate(block.block.code.split("\n"), 1):
+        print("--- full answer")
+        for n, line in enumerate(turn.answer.split("\n"), 1):
             print(f"{n:3} | {line}")
 
 
