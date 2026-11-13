@@ -47,6 +47,7 @@ class Record:
 class BadLine:
     line: int
     reason: str
+    raw: str = ""  # the input line, passed through unchanged by --fix
 
 
 def _text(value: object) -> str:
@@ -137,14 +138,16 @@ def read_jsonl(lines: Iterable[str], field: str | None = None,
         try:
             obj = json.loads(raw)
         except ValueError as exc:
-            yield BadLine(number, f"invalid JSON: {exc}")
+            yield BadLine(number, f"invalid JSON: {exc}", raw.rstrip("\n"))
             continue
         if not isinstance(obj, dict):
-            yield BadLine(number, "line is not a JSON object")
+            yield BadLine(number, "line is not a JSON object", raw.rstrip("\n"))
             continue
         item = to_record(obj, number, field, prompt_field)
         if isinstance(item, Record):
             item = Record(item.id, item.line, item.shape, item.turns, raw.rstrip("\n"))
+        else:
+            item = BadLine(item.line, item.reason, raw.rstrip("\n"))
         yield item
 
 

@@ -130,7 +130,23 @@ def test_fix_drops_only_named_rules(tmp_path, capsys):
     assert main(["check", str(src), "--fix", str(out), "--drop", "py-syntax"]) == 0
     kept = [json.loads(line)["id"] for line in out.read_text().splitlines()]
     assert kept == [2, 3]
-    assert "kept 2 records, dropped 1" in capsys.readouterr().err
+    assert "kept 2 records and 0 unreadable lines, dropped 1" in capsys.readouterr().err
+
+
+def test_fix_refuses_to_overwrite_its_input(tmp_path):
+    src = _write(tmp_path, [{"instruction": "a", "output": "b"}] * 10)
+    before = src.read_text()
+    assert main(["check", str(src), "--fix", str(src), "--drop", "py-syntax"]) == 2
+    assert src.read_text() == before
+
+
+def test_fix_passes_unreadable_lines_through(tmp_path, capsys):
+    src = tmp_path / "in.jsonl"
+    src.write_text('{"instruction": "a", "output": "b"}\n{broken\n[1]\n{"other": 1}\n')
+    out = tmp_path / "out.jsonl"
+    assert main(["check", str(src), "--fix", str(out), "--drop", "py-syntax"]) == 0
+    assert out.read_text() == src.read_text()
+    assert "kept 1 records and 3 unreadable lines" in capsys.readouterr().err
 
 
 def test_fix_and_drop_need_each_other(tmp_path):

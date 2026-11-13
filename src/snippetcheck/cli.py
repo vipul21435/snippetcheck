@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -79,8 +80,12 @@ def cmd_check(args: argparse.Namespace) -> int:
     if args.fix and not drop:
         print("snippetcheck: --fix needs at least one --drop RULE", file=sys.stderr)
         return 2
+    if args.fix and args.path != "-" and os.path.exists(args.fix) \
+            and os.path.samefile(args.fix, args.path):
+        print("snippetcheck: --fix OUT must not be the input file", file=sys.stderr)
+        return 2
     options = Options(external=not args.no_external)
-    kept = dropped = 0
+    kept = dropped = passed = 0
     out = open(args.fix, "w", encoding="utf-8", errors="backslashreplace") if args.fix else None
     try:
         with _open_input(args.path) as handle:
@@ -90,7 +95,7 @@ def cmd_check(args: argparse.Namespace) -> int:
                                     dedupe=not args.no_dedupe)
 
             def tee():
-                nonlocal kept, dropped
+                nonlocal kept, dropped, passed
                 for result in results:
                     if out is not None and isinstance(result, RecordResult):
                         if result.rules() & drop:
@@ -98,6 +103,9 @@ def cmd_check(args: argparse.Namespace) -> int:
                         else:
                             out.write(result.record.raw + "\n")
                             kept += 1
+                    elif out is not None and result.raw:
+                        out.write(result.raw + "\n")  # unreadable lines are passed through
+                        passed += 1
                     yield result
 
             summary = summarise(tee(), max_examples=args.examples)
@@ -109,8 +117,8 @@ def cmd_check(args: argparse.Namespace) -> int:
     else:
         print(to_markdown(summary), end="")
     if out is not None:
-        print(f"--fix: kept {kept} records, dropped {dropped} ({', '.join(sorted(drop))})",
-              file=sys.stderr)
+        print(f"--fix: kept {kept} records and {passed} unreadable lines, dropped {dropped} "
+              f"({', '.join(sorted(drop))})", file=sys.stderr)
     failed = failed_thresholds(summary, args.max)
     for line in failed:
         print(f"threshold exceeded: {line}", file=sys.stderr)
@@ -169,7 +177,9 @@ def build_parser() -> argparse.ArgumentParser:
                        metavar="RULE=SHARE",
                        help="exit 1 when RULE's share exceeds SHARE (0.05 or 5%%); repeatable")
     check.add_argument("--fix", metavar="OUT",
-                       help="write the records that no --drop rule rejects to OUT (JSONL)")
+                       help="write the records that no --drop rule rejects to OUT, as JSONL "
+                            "(also for JSON array input); unreadable lines are copied as they "
+                            "are; OUT must differ from the input")
     check.add_argument("--drop", type=_rule_list, action="append", default=[],
                        metavar="RULE[,RULE]", help="with --fix, drop records with these rules")
     check.add_argument("--jobs", type=int, default=4,
