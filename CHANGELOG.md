@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- Unfenced answers are taken whole before indented blocks are looked for, so an indented
+  function body is no longer cut out of its answer; text that only parses into bare
+  expressions is not called Python.
+- Deeply nested but valid code no longer aborts a run (the scope analysis is skipped for it).
+- Lone surrogates no longer abort a run.
+- `--fix` refuses to overwrite its input and copies unreadable lines through.
+- Truncation is not reported for prose after code, apostrophes in sentences or
+  comment-only bodies; the backtick Python 2 marker is gone (it matched Markdown).
+- Valid Python is parsed unchanged before any notebook rewrite.
+- `__class__`, `type` aliases and `__all__` are handled by the scope analysis.
+- JSX gets its own language and is not sent to node; a UTF-8 BOM is accepted and non-UTF-8
+  input exits 2.
+- More unfenced languages are recognised (C functions, Ruby, CSS, Perl, Scala, R, VHDL).
+
 ## 0.1.0 - 2026-11-13
 
 First release.
