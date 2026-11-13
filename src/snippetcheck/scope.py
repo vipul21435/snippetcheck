@@ -92,6 +92,7 @@ class _Analyzer(ast.NodeVisitor):
         self.in_annotation = 0
         self.star = False
         self.declared_global: set[str] = set()
+        self.all_names: set[str] = set()
 
     # -- driver -----------------------------------------------------------------
     def run(self, tree: ast.Module) -> ScopeReport:
@@ -104,6 +105,10 @@ class _Analyzer(ast.NodeVisitor):
             self.handlers = [set()]
             job()
             self.handlers = saved_handlers
+        module = self.stack[0] if self.stack else None
+        for name in self.all_names:  # names exported through __all__ count as used
+            if module is not None and name in module.bindings:
+                module.bindings[name].used = True
         # as in pyflakes: a name some function declares global counts as defined
         self.undefined = [i for i in self.undefined if i.name not in self.declared_global]
         unused = [NameIssue(b.label, b.line, b.col) for b in self.imports if not b.used]
@@ -150,6 +155,8 @@ class _Analyzer(ast.NodeVisitor):
                 return True
         if any(scope.star for scope in self.stack):
             return True
+        if name == "__class__" and any(scope.kind == "class" for scope in self.stack[:-1]):
+            return True  # the implicit closure cell of methods
         if name in self.builtins:
             return True
         return name in CLASS_MAGIC and self.stack[-1].kind == "class"
@@ -239,12 +246,28 @@ class _Analyzer(ast.NodeVisitor):
         for name in node.names:
             self.bind(name, "nonlocal", node)
 
+    def _exports(self, target: ast.AST, value: ast.AST) -> None:
+        if (len(self.stack) == 1 and isinstance(target, ast.Name) and target.id == "__all__"
+                and isinstance(value, (ast.List, ast.Tuple))):
+            self.all_names.update(e.value for e in value.elts
+                                  if isinstance(e, ast.Constant) and isinstance(e.value, str))
+
+    def visit_TypeAlias(self, node: ast.AST) -> None:
+        self.bind(node.name.id, "assign", node.name)
+        pushed = self._type_params(node)
+        self.visit(node.value)
+        if pushed:
+            self.stack.pop()
+
     def visit_Assign(self, node: ast.Assign) -> None:
+        for target in node.targets:
+            self._exports(target, node.value)
         self.visit(node.value)
         for target in node.targets:
             self.visit(target)
 
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        self._exports(node.target, node.value)
         if isinstance(node.target, ast.Name):
             self.load(node.target.id, node.target)
             self.visit(node.value)

@@ -1,4 +1,5 @@
 import ast
+import sys
 
 import pytest
 from pyflakes import checker, messages
@@ -68,3 +69,22 @@ def test_unused_import_labels():
 def test_extra_builtins():
     tree = ast.parse("display(df)\ndf = 1")
     assert {i.name for i in analyse(tree, extra_builtins={"display"}).undefined} == {"df"}
+
+
+def test_class_cell_in_methods():
+    src = "class A:\n    def m(self):\n        return __class__"
+    assert analyse(ast.parse(src)).undefined == []
+    assert [i.name for i in analyse(ast.parse("def f():\n    return __class__")).undefined] == [
+        "__class__"]
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="type statement is 3.12 syntax")
+def test_type_alias_parameters():
+    tree = ast.parse("type Pair[T] = tuple[T, T]\nx: Pair[int]")
+    assert analyse(tree).undefined == []
+
+
+def test_dunder_all_marks_imports_used():
+    assert analyse(ast.parse("import os\n__all__ = ['os']")).unused_imports == []
+    report = analyse(ast.parse("import os, sys\n__all__ = ('os',)\n__all__ += ['sys']"))
+    assert report.unused_imports == []
