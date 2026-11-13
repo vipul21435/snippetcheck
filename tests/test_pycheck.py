@@ -192,3 +192,18 @@ def test_placeholders(code, what):
 )
 def test_legitimate_stubs_are_not_placeholders(code):
     assert "placeholder" not in rules(code)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "total = " + " + ".join(["1"] * 500),
+        "if x == 0:\n    y = 0\n"
+        + "".join(f"elif x == {i}:\n    y = {i}\n" for i in range(1, 500)),
+        "r = q" + ".f()" * 300,
+    ],
+)
+def test_deep_but_valid_code_does_not_abort(code):
+    result = check_python(code)
+    assert "skipped: scope analysis (expression nested too deeply)" in result.notes
+    assert not any(f.rule == "py-syntax" for f in result.findings)

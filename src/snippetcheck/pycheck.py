@@ -226,7 +226,11 @@ def check_python(code: str) -> PythonResult:
         findings.append(Finding("py-compile", f"{key}{where}", line,
                                 getattr(exc, "offset", None), detail=key))
     extra = NOTEBOOK_NAMES if prep.notes else frozenset()
-    report = analyse(tree, extra)
+    try:
+        report = analyse(tree, extra)
+    except RecursionError:
+        notes = prep.notes + ["skipped: scope analysis (expression nested too deeply)"]
+        return PythonResult(findings, notes, tree=tree)
     for issue in report.undefined:
         note = " (a Python 2 builtin)" if issue.name in PYTHON2_BUILTINS else ""
         findings.append(Finding("py-undefined-name",
