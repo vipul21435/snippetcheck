@@ -148,3 +148,47 @@ def test_scanner_json_syntax():
 def test_prepare_keeps_line_numbers():
     prep = prepare("%time\nx = 1\n!ls\ny = 2")
     assert prep.source.split("\n") == ["pass", "x = 1", "pass", "y = 2"]
+
+
+def test_undefined_and_unused_in_check():
+    result = check_python("import os\nprint(xrange(3), value)")
+    found = {(f.rule, f.detail) for f in result.findings}
+    assert ("py-undefined-name", "xrange") in found
+    assert ("py-undefined-name", "value") in found
+    assert ("py-unused-import", "os") in found
+
+
+def test_notebook_names_count_as_defined_only_in_notebook_code():
+    assert "py-undefined-name" not in rules("%matplotlib inline\ndisplay(1)")
+    assert "py-undefined-name" in rules("display(1)")
+
+
+@pytest.mark.parametrize(
+    "code, what",
+    [
+        ("def solve(nums):\n    pass", "function 'solve' has an empty body"),
+        ("def solve(nums):\n    '''Return the answer.'''\n    ...",
+         "function 'solve' has an empty body"),
+        ("x = 1\n...", "'...' in place of code"),
+        ("def f():\n    # your code here\n    return None", "placeholder text"),
+        ("def f():\n    return 1  # TODO: implement properly", "placeholder text"),
+    ],
+)
+def test_placeholders(code, what):
+    found = [f for f in check_python(code).findings if f.rule == "placeholder"]
+    assert [f.detail for f in found] == [what]
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "from abc import ABC, abstractmethod\nclass Shape(ABC):\n    @abstractmethod\n"
+        "    def area(self):\n        pass",
+        "class NotFound(Exception):\n    pass",
+        "from typing import Protocol\nclass P(Protocol):\n    def run(self) -> None: ...",
+        "from typing import overload\n@overload\ndef f(x: int) -> int: ...\n"
+        "def f(x):\n    return x",
+    ],
+)
+def test_legitimate_stubs_are_not_placeholders(code):
+    assert "placeholder" not in rules(code)

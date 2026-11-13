@@ -1,0 +1,85 @@
+"""Small programs for comparing the scope analysis with pyflakes.
+
+Each entry is source text only; the tests parse it and never run it.
+"""
+
+CORPUS = [
+    # plain module code
+    "x = 1\nprint(x)",
+    "print(y)\ny = 2",
+    "import os\nprint(os.getcwd())",
+    "import os.path\nos.path.join('a', 'b')",
+    "import numpy as np\nnp.zeros(3)",
+    "from collections import defaultdict as dd\nd = dd(list)",
+    "from math import *\nprint(sqrt(2))",
+    "x += 1",
+    "total = 0\ntotal += 1",
+    "del ghost",
+    "a, (b, c) = 1, (2, 3)\nprint(a + b + c)",
+    "first, *rest = [1, 2, 3]\nprint(rest)",
+    "print(undefined_thing)",
+    "result = compute(data)",
+    "print(__name__, __file__, __doc__)",
+    # functions
+    "def f():\n    return g()\n\ndef g():\n    return 1",
+    "def f(a, b=2, *args, c, d=4, **kw):\n    return a + b + c + d + len(args) + len(kw)",
+    "def f():\n    print(z)\n    z = 1",
+    "def f():\n    return later\n\nlater = 3",
+    "def f(x=missing_default):\n    return x",
+    "def f(x: int) -> str:\n    return str(x)",
+    "def f(x: 'Foo') -> 'Bar':\n    return x\n\nclass Foo:\n    pass",
+    "def outer():\n    v = 1\n    def inner():\n        return v\n    return inner",
+    "def outer():\n    def inner():\n        nonlocal count\n        count = 1\n    count = 0\n    inner()",
+    "def f():\n    global G\n    G = 1\n\nf()\nprint(G)",
+    "counter = 0\ndef bump():\n    global counter\n    counter += 1",
+    "f = lambda x, y=1: x + y + z",
+    "g = lambda: h\nh = 2",
+    "async def main():\n    await thing()",
+    "async def main(items):\n    async for i in items:\n        print(i)\n    async with lock:\n        pass",
+    "def deco(fn):\n    return fn\n\n@deco\ndef f():\n    pass",
+    "@unknown_decorator\ndef f():\n    pass",
+    "def f():\n    yield from other()",
+    # classes
+    "class A:\n    x = 1\n    y = x + 1",
+    "class A:\n    x = 1\n    def m(self):\n        return x",
+    "class A:\n    def m(self):\n        return A()",
+    "class A(Base):\n    pass",
+    "class A:\n    name = __qualname__\n    mod = __module__",
+    "class A:\n    items = [1, 2]\n    doubled = [i * 2 for i in items]",
+    "class A:\n    k = 3\n    vals = [k for _ in range(2)]",
+    "class Node:\n    def child(self) -> 'Node':\n        return self",
+    "class A(metaclass=Meta):\n    pass",
+    # comprehensions and walrus
+    "squares = [n * n for n in range(5)]\nprint(n)",
+    "pairs = {k: v for k, v in [(1, 2)]}",
+    "nested = [x + y for x in range(3) for y in range(x)]",
+    "gen = (w for w in words)",
+    "if (m := 3) > 2:\n    print(m)",
+    "data = [1, 2]\nfound = [y for x in data if (y := x * 2)]\nprint(y)",
+    "{s for s in 'abc' if s != other}",
+    # exceptions and control flow
+    "try:\n    import ujson as json\nexcept ImportError:\n    import json\nprint(json)",
+    "try:\n    pass\nexcept ValueError as e:\n    print(e)",
+    "try:\n    maybe\nexcept NameError:\n    maybe = None",
+    "try:\n    risky()\nexcept (KeyError, CustomError):\n    pass",
+    "for i in range(3):\n    pass\nelse:\n    print(i)",
+    "while flag:\n    break",
+    "with open('f') as fh, open('g') as gh:\n    print(fh, gh)",
+    "with ctx() as (a, b):\n    print(a, b)",
+    # imports
+    "import os\nimport sys",
+    "from typing import List\nx: List[int] = []",
+    "from __future__ import annotations\ndef f(x: Later) -> Later:\n    return x\n\nclass Later:\n    pass",
+    "import json\ndef f():\n    import re\n    return 1",
+    "from . import sibling\nsibling.run()",
+    "from typing import Literal\nMode = Literal['fast', 'slow']\ndef f(m: Literal['a']):\n    return m",
+    "x: int\nprint(x)",
+    # builtins and Python 2 names
+    "print(len([1]), max(1, 2), isinstance(1, int))",
+    "name = raw_input('?')",
+    "for i in xrange(3):\n    print(i)",
+    "s = unicode('a')",
+    # match statement
+    "match cmd:\n    case [action, obj]:\n        print(action, obj)\n    case {'k': v, **rest}:\n"
+    "        print(v, rest)\n    case Point(x=px) as p:\n        print(px, p)\n    case _:\n        pass",
+]

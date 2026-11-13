@@ -3,13 +3,26 @@
 from __future__ import annotations
 
 import ast
+import io
 import re
 import textwrap
+import tokenize
 import warnings
 from dataclasses import dataclass, field
 
 from .rules import Finding
 from .scan import ScanResult, scan
+from .scope import PYTHON2_BUILTINS, analyse
+
+NOTEBOOK_NAMES = frozenset({"display", "get_ipython", "In", "Out"})
+_PLACEHOLDER_TEXT = re.compile(
+    r"(?i)\b(your (own )?(code|implementation|solution|logic) (goes )?here|"
+    r"(insert|add|write|put|place) (your )?code here|code goes here|implement (this|me)\b|"
+    r"todo:?\s*implement|rest of (the|your) code|fill in (the|your) code)"
+)
+_STUB_EXEMPT_DECORATORS = {"abstractmethod", "abstractproperty", "overload", "abstractclassmethod",
+                           "abstractstaticmethod"}
+_STUB_EXEMPT_BASES = {"Protocol", "ABC", "ABCMeta", "Exception", "BaseException"}
 
 _LINE_MAGIC = re.compile(r"^(?P<indent>\s*)(%|!)(?!=)\S")
 _CELL_MAGIC = re.compile(r"^\s*%%(?P<name>\w+)(?P<args>.*)$")
@@ -212,4 +225,71 @@ def check_python(code: str) -> PythonResult:
         where = f" at line {line}" if line else ""
         findings.append(Finding("py-compile", f"{key}{where}", line,
                                 getattr(exc, "offset", None), detail=key))
+    extra = NOTEBOOK_NAMES if prep.notes else frozenset()
+    report = analyse(tree, extra)
+    for issue in report.undefined:
+        note = " (a Python 2 builtin)" if issue.name in PYTHON2_BUILTINS else ""
+        findings.append(Finding("py-undefined-name",
+                                f"undefined name '{issue.name}'{note} at line {issue.line}",
+                                issue.line, issue.col, detail=issue.name))
+    for issue in report.unused_imports:
+        findings.append(Finding("py-unused-import",
+                                f"'{issue.name}' imported but unused at line {issue.line}",
+                                issue.line, issue.col, detail=issue.name))
+    for what, line in placeholders(tree, src):
+        findings.append(Finding("placeholder", f"{what} at line {line}", line, detail=what))
     return PythonResult(findings, prep.notes, tree=tree)
+
+
+def _is_stub_body(body: list[ast.stmt]) -> bool:
+    if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) \
+            and isinstance(body[0].value.value, str):
+        body = body[1:]
+    return all(
+        isinstance(stmt, ast.Pass)
+        or (isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant)
+            and stmt.value.value is Ellipsis)
+        for stmt in body
+    )
+
+
+def _name_of(node: ast.AST) -> str:
+    if isinstance(node, ast.Call):
+        node = node.func
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Subscript):
+        return _name_of(node.value)
+    return ""
+
+
+def placeholders(tree: ast.Module, src: str) -> list[tuple[str, int]]:
+    """Find stub bodies, a bare ``...`` standing for omitted code, and "your code here"."""
+    found: list[tuple[str, int]] = []
+    exempt: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef):
+            names = {_name_of(b) for b in node.bases} | {_name_of(k.value) for k in node.keywords}
+            if names & _STUB_EXEMPT_BASES or any(n.endswith(("Error", "Exception"))
+                                                  for n in names):
+                exempt.update(id(child) for child in node.body)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and id(node) not in exempt:
+            decorators = {_name_of(d) for d in node.decorator_list}
+            if not decorators & _STUB_EXEMPT_DECORATORS and _is_stub_body(node.body):
+                found.append((f"function '{node.name}' has an empty body", node.lineno))
+    for stmt in tree.body:
+        if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant) \
+                and stmt.value.value is Ellipsis:
+            found.append(("'...' in place of code", stmt.lineno))
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
+            if tok.type in (tokenize.COMMENT, tokenize.STRING) and _PLACEHOLDER_TEXT.search(
+                    tok.string):
+                found.append(("placeholder text", tok.start[0]))
+    except (tokenize.TokenError, SyntaxError):
+        pass
+    found.sort(key=lambda item: item[1])
+    return found

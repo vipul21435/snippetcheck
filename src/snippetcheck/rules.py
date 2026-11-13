@@ -58,6 +58,34 @@ _RULES = [
         "without its def line land here.",
     ),
     Rule(
+        "py-undefined-name",
+        "python",
+        "A Python block uses a name it never defines or imports.",
+        "From a scope analysis of the AST (module and class bodies in order, function bodies "
+        "after the enclosing body, class scopes skipped from functions, comprehension scopes, "
+        "global/nonlocal, star imports, NameError guards, string annotations). Builtins of the "
+        "running Python count as defined, Python 2 builtins such as xrange do not. Only for "
+        "blocks that parse. A snippet that refers to a variable named in the prompt is "
+        "flagged too: the check reads the code alone.",
+    ),
+    Rule(
+        "py-unused-import",
+        "python",
+        "A Python block imports a name it never uses.",
+        "From the same scope analysis. 'from __future__' imports are never reported, and an "
+        "unused import that is rebound (as in a try/except ImportError fallback) counts as a "
+        "redefinition, not as unused.",
+    ),
+    Rule(
+        "placeholder",
+        "python",
+        "A Python block holds a stub instead of code.",
+        "A function whose body is only pass, '...' or a docstring (abstract methods, "
+        "overloads, Protocol/ABC members and exception classes excepted), a bare '...' "
+        "statement at module level, or a comment or string such as 'your code here' or "
+        "'TODO: implement'. Only for blocks that parse.",
+    ),
+    Rule(
         "truncated",
         "checked",
         "The code stops mid-statement, inside a string or with brackets left open.",

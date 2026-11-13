@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "pytest-cov>=4", "ruff>=0.5"]
+dev = ["pytest>=7", "pytest-cov>=4", "ruff>=0.5", "pyflakes>=3"]
 
 [project.scripts]
 snippetcheck = "snippetcheck.cli:main"
@@ -42,6 +42,10 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/scope_corpus.py" = ["E501"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["tests"]
 addopts = "-ra"
