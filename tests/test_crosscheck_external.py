@@ -226,3 +226,24 @@ def test_lone_surrogate_does_not_abort(tmp_path, capsys):
     assert json.loads(out.read_text())["output"] == row["output"]
     # Python cannot encode such source, so the block is reported, not crashed on
     assert "UnicodeEncodeError" in capsys.readouterr().out
+
+
+def test_jsx_is_not_sent_to_node():
+    [block] = extract_blocks(f"{FENCE}jsx\nconst App = () => <div>hi</div>;\n{FENCE}")
+    assert block.lang == "jsx"
+    assert check_block(block).checker == "balance"
+    code = "const App = () => {\n  return <h1>Hi</h1>;\n};"
+    [guessed] = extract_blocks(f"{FENCE}\n{code}\n{FENCE}")
+    assert guessed.lang == "jsx"
+
+
+def test_bom_and_non_utf8_input(tmp_path, capsys):
+    src = tmp_path / "bom.jsonl"
+    src.write_bytes(b"\xef\xbb\xbf" + json.dumps({"instruction": "a", "output": "b"}).encode())
+    assert main(["check", str(src), "--format", "json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["records"] == 1 and data["bad_lines"] == 0
+    latin = tmp_path / "latin.jsonl"
+    latin.write_bytes('{"instruction": "caf\xe9", "output": "x"}\n'.encode("latin-1"))
+    assert main(["check", str(latin)]) == 2
+    assert "not UTF-8" in capsys.readouterr().err

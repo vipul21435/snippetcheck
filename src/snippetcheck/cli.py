@@ -23,7 +23,7 @@ def _open_input(path: str) -> Iterator[TextIO]:
     if path == "-":
         yield sys.stdin
     else:
-        with open(path, encoding="utf-8") as handle:
+        with open(path, encoding="utf-8-sig") as handle:
             yield handle
 
 
@@ -207,6 +207,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return args.func(args)
     except OSError as exc:
         print(f"snippetcheck: {exc}", file=sys.stderr)
+        return 2
+    except UnicodeDecodeError as exc:
+        print(f"snippetcheck: input is not UTF-8 ({exc})", file=sys.stderr)
         return 2
 
 

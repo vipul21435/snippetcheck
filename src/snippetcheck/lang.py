@@ -13,7 +13,8 @@ import re
 _ALIASES: dict[str, tuple[str, ...]] = {
     "python": ("python", "py", "python3", "py3", "python2", "py2", "ipython", "ipython3",
                "pycon", "pyi", "sage"),
-    "javascript": ("javascript", "js", "node", "nodejs", "jsx", "mjs", "cjs"),
+    "javascript": ("javascript", "js", "node", "nodejs", "mjs", "cjs"),
+    "jsx": ("jsx",),
     "typescript": ("typescript", "ts", "tsx"),
     "shell": ("shell", "sh", "bash", "zsh", "ksh", "console", "shell-session", "shellsession",
               "terminal"),
@@ -148,6 +149,8 @@ _CUES: dict[str, list[tuple[re.Pattern[str], float]]] = {
 }
 
 _MIN_SCORE = 2.0
+_MARKUP = re.compile(r"</[A-Za-z][\w.]*>|<[A-Za-z][\w.]*(\s[^<>]*)?/>")
+_HTML_DOC = re.compile(r"<!DOCTYPE|<html\b|<body\b|<head\b", re.I)
 
 
 def guess_language(code: str) -> str:
@@ -176,6 +179,8 @@ def guess_language(code: str) -> str:
         return ""
     if best == "c" and scores["cpp"] > 0:
         return "cpp"
+    if best == "javascript" and _MARKUP.search(code):
+        return "html" if _HTML_DOC.search(code) else "jsx"
     return best
 
 
