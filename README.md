@@ -300,6 +300,9 @@ downloads both, and only ids, names and counts derived from them are committed.
   n-gram overlap.
 - [pyflakes](https://pypi.org/project/pyflakes/) is the reference for the scope analysis and
   is used in the tests.
+- [divscore](https://github.com/vipul21435/divscore): diversity of a text dataset measured at a fixed budget of tokens or texts.
+- [datadelta](https://github.com/vipul21435/datadelta): what was added, removed and edited between two versions of a dataset.
+- [chatconv](https://github.com/vipul21435/chatconv): converts chat datasets between formats and reports what each conversion loses.
 
 ## Licence
 
