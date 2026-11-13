@@ -1,0 +1,14 @@
+n,record,reason,verdict,note
+1,6542,ends with brackets still open,not-a-stop,missing parenthesis typo on the last line
+2,19256,ends with brackets still open,stops,cut inside a list literal
+3,1183,ends mid-statement,not-a-stop,syntax template with a <statement(s)> placeholder
+4,5301,ends with brackets still open,stops,final closing brace of the class missing
+5,10776,ends inside a string,stops,cut inside a string literal
+6,9482,ends after a block header with no body,not-a-stop,answer is only a renamed signature
+7,3995,ends inside a string,not-a-stop,apostrophe in a '# Output' line after C++ code
+8,2961,ends with brackets still open,stops,cut after 'float num2 ='
+9,16824,ends with brackets still open,stops,final closing brace missing
+10,6067,ends after a block header with no body,stops,ends at 'else:' with no body
+11,11123,ends with brackets still open,stops,final closing brace missing
+12,12558,ends inside a string,not-a-stop,triple-quoted string copied unclosed from the prompt
+13,2155,ends with brackets still open,stops,final closing brace of the class missing
