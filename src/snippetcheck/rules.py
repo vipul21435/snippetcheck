@@ -45,8 +45,8 @@ _RULES = [
         "py2-syntax",
         "python",
         "A Python block that does not parse uses Python 2 syntax.",
-        "Recognised markers: the print statement, 'except X, e', 'raise E, msg', backtick "
-        "repr, the <> operator, the exec statement, 0777 octal literals, 10L long literals "
+        "Recognised markers: the print statement, 'except X, e', 'raise E, msg', the <> "
+        "operator, the exec statement, 0777 octal literals, 10L long literals "
         "and ur'' string prefixes. Only reported when the block also fails to parse.",
     ),
     Rule(

@@ -34,7 +34,6 @@ _PY2_MARKERS: list[tuple[str, re.Pattern[str]]] = [
      re.compile(r"^\s*print\s+(?![\s=(.\[,)+\-*/%<>!&|^:;]|$)\S|^\s*print\s*>>")),
     ("'except X, e' clause", re.compile(r"^\s*except\s+(\([^)]*\)|[\w.]+)\s*,\s*\w+\s*:")),
     ("'raise E, msg' statement", re.compile(r"^\s*raise\s+[\w.]+\s*,")),
-    ("backtick repr", re.compile(r"`")),
     ("<> operator", re.compile(r"<>")),
     ("exec statement", re.compile(r"^\s*exec\s+[\"'\w]")),
     ("octal literal", re.compile(r"(?<![\w.])0[0-7]*[1-7][0-7]*(?![\w.])")),

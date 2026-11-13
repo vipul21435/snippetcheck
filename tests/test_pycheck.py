@@ -37,7 +37,6 @@ def test_tab_error_class():
         ("x = 3\nprint x", "print statement"),
         ("try:\n    pass\nexcept ValueError, e:\n    pass", "'except X, e' clause"),
         ("raise ValueError, 'bad'", "'raise E, msg' statement"),
-        ("s = `x`", "backtick repr"),
         ("if a <> b:\n    pass", "<> operator"),
         ("exec 'x = 1'", "exec statement"),
         ("mode = 0755", "octal literal"),
@@ -50,6 +49,11 @@ def test_python2_markers(code, marker):
     found = {f.rule: f for f in result.findings}
     assert "py-syntax" in found
     assert found["py2-syntax"].detail == marker
+
+
+def test_markdown_inline_code_is_not_python2():
+    found = {f.rule for f in check_python("The `swap` function first checks the input.").findings}
+    assert "py2-syntax" not in found
 
 
 def test_python2_markers_ignore_strings_and_comments():
