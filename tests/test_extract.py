@@ -141,3 +141,13 @@ def test_more_unfenced_languages_are_taken_whole():
     for text, lang in cases.items():
         [block] = extract_blocks(text)
         assert (block.kind, block.lang) == ("whole", lang), text
+
+
+def test_text_that_only_parses_as_expressions_is_not_python():
+    for text in ["apple, banana, cherry", "The: article\ncat: noun", "a * b;",
+                 "db.users.insert({\n    name: String\n})", "C++ (1985), Java (1995)"]:
+        assert all(b.lang != "python" for b in extract_blocks(text)), text
+    [block] = extract_blocks("x <- 5\nsquare_x <- x * x\nprint(paste0('sq ', square_x))")
+    assert block.lang == "r"
+    [block] = extract_blocks("print(x + 1)")
+    assert block.lang == "python"

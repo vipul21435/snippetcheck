@@ -122,16 +122,31 @@ def is_prose(line: str) -> bool:
     return not (re.search(r"[=;{}]", text) and not re.search(r"[.?!:]$", text))
 
 
+def _is_statement(stmt: ast.stmt) -> bool:
+    """A statement that prose, R, shell or C-like text is unlikely to parse into."""
+    if isinstance(stmt, ast.Expr):
+        call = stmt.value
+        return (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+                and call.func.id == "print")
+    return not (isinstance(stmt, ast.AnnAssign) and stmt.value is None)
+
+
 def parses_as_python(text: str) -> bool:
-    """True when ``text`` parses and holds more than bare names or constants."""
+    """True when ``text`` parses as Python and holds a real statement.
+
+    Text that only parses into bare expressions (``apple, banana``, ``a * b``, R calls,
+    a MongoDB ``db.x.insert({...})``) or ``name: value`` annotations does not count, nor
+    does text with R's ``<-`` or C-style trailing semicolons.
+    """
+    if "<-" in text or any(line.rstrip().endswith(";") for line in text.split("\n")):
+        return False
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             tree = ast.parse(textwrap.dedent(text))
     except (SyntaxError, ValueError, RecursionError, MemoryError):
         return False
-    return any(not (isinstance(stmt, ast.Expr) and isinstance(stmt.value, (ast.Name, ast.Constant)))
-               for stmt in tree.body)
+    return any(_is_statement(stmt) for stmt in tree.body)
 
 
 def _indented(lines: list[str], taken: list[bool]) -> list[Block]:

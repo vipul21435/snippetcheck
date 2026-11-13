@@ -155,6 +155,10 @@ _CUES: dict[str, list[tuple[re.Pattern[str], float]]] = {
         (re.compile(r"^\s*object \w+", re.M), 2.0),
         (re.compile(r"\bdef \w+\(.*\)\s*:\s*\w+.*="), 2.0),
     ],
+    "r": [
+        (re.compile(r"^\s*[\w.]+\s*<-\s*\S", re.M), 2.5),
+        (re.compile(r"\b(paste0?|library|data\.frame|runif|rnorm)\("), 1.5),
+    ],
     "vhdl": [
         (re.compile(r"\bentity \w+ is\b", re.I), 3.0),
         (re.compile(r"\barchitecture \w+ of\b", re.I), 3.0),
