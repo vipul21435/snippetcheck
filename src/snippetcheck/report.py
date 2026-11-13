@@ -15,7 +15,7 @@ Z95 = 1.959963984540054
 
 
 def wilson_interval(k: int, n: int, z: float = Z95) -> tuple[float, float]:
-    """Wilson score interval for k successes in n trials (Wilson 1927).
+    """Wilson score interval for k successes in n trials.
 
     Returns (0.0, 1.0) when n is 0.
     """
