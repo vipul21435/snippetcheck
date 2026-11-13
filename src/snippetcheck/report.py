@@ -96,7 +96,8 @@ def summarise(results: Iterable[RecordResult | BadLine], max_examples: int = 5) 
                     summary.skipped[note[len("skipped: "):]] += 1
             lang = block.block.lang or "unknown"
             per_lang = summary.by_language.setdefault(lang, Counter())
-            for rule_id in {f.rule for f in block.findings}:
+            found = {f.rule for f in block.findings}
+            for rule_id in (r for r in RULES if r in found):
                 per_lang[rule_id] += 1
                 stat = summary.rules[rule_id]
                 stat.count += 1
