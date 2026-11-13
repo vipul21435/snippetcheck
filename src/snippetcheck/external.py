@@ -39,7 +39,7 @@ def tool(name: str) -> str | None:
 def _run(cmd: list[str], code: str, suffix: str) -> subprocess.CompletedProcess[str]:
     handle, path = tempfile.mkstemp(suffix=suffix, prefix="snippet")
     try:
-        with os.fdopen(handle, "w", encoding="utf-8") as fh:
+        with os.fdopen(handle, "w", encoding="utf-8", errors="replace") as fh:
             fh.write(code)
             if not code.endswith("\n"):
                 fh.write("\n")

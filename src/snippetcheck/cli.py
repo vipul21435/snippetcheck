@@ -81,7 +81,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         return 2
     options = Options(external=not args.no_external)
     kept = dropped = 0
-    out = open(args.fix, "w", encoding="utf-8") if args.fix else None
+    out = open(args.fix, "w", encoding="utf-8", errors="backslashreplace") if args.fix else None
     try:
         with _open_input(args.path) as handle:
             records = _limited(read_jsonl(iter_lines(handle), args.field, args.prompt_field),

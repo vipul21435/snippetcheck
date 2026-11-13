@@ -92,4 +92,4 @@ def block_key(code: str, min_lines: int = 3) -> str | None:
     norm = normalise_code(code)
     if sum(1 for line in norm.split("\n") if line.strip()) < min_lines:
         return None
-    return hashlib.sha1(norm.encode("utf-8")).hexdigest()
+    return hashlib.sha1(norm.encode("utf-8", "surrogatepass")).hexdigest()

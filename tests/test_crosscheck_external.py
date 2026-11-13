@@ -193,3 +193,20 @@ def test_fuzz_round_trip_of_generated_fences():
         blocks = extract_blocks("\n".join(parts))
         assert [b.code.split("\n") for b in blocks] == bodies
         assert all(b.terminated and b.lang == "python" for b in blocks)
+
+
+def test_lone_surrogate_does_not_abort(tmp_path, capsys):
+    row = {"instruction": "Write a Python function",
+           "output": f"{FENCE}python\nx = '\ud800'\ny = 2\nprint(x, y)\n{FENCE}"}
+    dup = {"instruction": "Write a shell script",
+           "output": f"{FENCE}bash\necho '\ud800'\necho a\necho b\n{FENCE}"}
+    src = tmp_path / "s.jsonl"
+    src.write_text(json.dumps(row) + "\n" + json.dumps(dup) + "\n" + json.dumps(dup) + "\n")
+    out = tmp_path / "o.jsonl"
+    assert main(["check", str(src), "--fix", str(out), "--drop", "py-syntax"]) == 0
+    array = tmp_path / "a.json"
+    array.write_text(json.dumps([row]))
+    assert main(["check", str(array), "--fix", str(out), "--drop", "truncated"]) == 0
+    assert json.loads(out.read_text())["output"] == row["output"]
+    # Python cannot encode such source, so the block is reported, not crashed on
+    assert "UnicodeEncodeError" in capsys.readouterr().out
