@@ -84,13 +84,15 @@ Other commands and options:
 - `snippetcheck check data.jsonl --max py-syntax=2% --max truncated=0.5%` exits 1 when a share
   goes over its limit (0 otherwise, 2 for bad usage or input).
 - `snippetcheck check data.jsonl --fix clean.jsonl --drop py-syntax,truncated` writes a copy
-  without the records those rules reject; every other record is kept unchanged.
+  without the records those rules reject; every other record, and every line that could not
+  be read as a record, is copied unchanged. The copy is JSONL even when the input is a JSON
+  array, and OUT may not be the input file.
 - `snippetcheck extract data.jsonl --lang python` prints every block as one JSON line.
 - `snippetcheck explain` lists the rules; `snippetcheck explain truncated` explains one.
 - `--field key.path` (and `--prompt-field`) for JSONL in any other shape; `--no-external`
   skips `bash` and `node`; `--jobs N` overlaps their calls; `--no-dedupe` skips duplicates.
 
-Input is JSONL, or a file holding one JSON array. Shapes are detected per record: `messages`
+Input is UTF-8 JSONL (a byte-order mark is accepted), or a file holding one JSON array. Shapes are detected per record: `messages`
 (role/content), ShareGPT `conversations` (from/value), Alpaca `instruction`/`input`/`output`,
 and the pairs `instruction`/`response`, `problem`/`solution`, `prompt`/`completion`,
 `prompt`/`response`, `question`/`answer`, `query`/`response`. For Alpaca the prompt is the
@@ -102,21 +104,27 @@ instruction followed by the input. `examples/check_sample.py` shows the Python A
 or tildes, closed by the same character at least as long, info string kept) with one
 deliberate difference: fences indented by any amount are accepted, because model output
 indents them inside list items. A fence that is never closed runs to the end of the text and
-is reported (`unterminated-fence`). Indented blocks need a blank line before them and are not
-taken inside list items. An answer with no blocks is taken whole when 70 % of its non-blank
-lines read as code and a language can be guessed. The language comes from the info string
-(107 aliases), otherwise from a weighted keyword score per language.
+is reported (`unterminated-fence`). An answer with no fence is taken whole when it parses as
+Python with at least one real statement (bare expressions, `name: value` lines, R's `<-` and
+trailing semicolons do not count), or when 70 % of its non-blank lines read as code and a
+language can be guessed. Only after that are indented blocks looked for, and only after a
+blank line that follows a prose paragraph (not inside list items), so the indented body of
+an unfenced function is never cut out of its answer. The language comes from the info string
+(107 aliases), otherwise from a weighted keyword score per language; JavaScript with JSX or
+HTML tags is called `jsx` or `html`.
 
-**Python.** The block is dedented, `>>>`/`...` transcripts are unwrapped (output lines
-blanked), line magics (`%`, `!`) and `obj?` help lines become `pass` so line numbers hold,
-and `%%bash`-style cells are skipped. `ast.parse` gives the error class, message and line;
+**Python.** The block is dedented and parsed as it is. Only when that fails are `>>>`/`...`
+transcripts unwrapped (output lines blanked), line magics (`%`, `!`) and `obj?` help lines
+turned into `pass` so line numbers hold, and `%%bash`-style cells skipped. `ast.parse` gives the error class, message and line;
 `compile()` on the tree then catches what the parser lets through (`'return' outside
 function`). Neither runs anything. When a block fails, Python 2 markers are looked for
-outside strings and comments (print statement, `except X, e`, backtick repr, `<>`, `0777`,
+outside strings and comments (print statement, `except X, e`, `raise E, msg`, `<>`, `0777`,
 `10L`, `ur''`), and the failure is called truncated when the end of the text explains it: a
 string still open, brackets still open (closing them makes the code parse, or the innermost
 one opened on the last line), or a last line ending in an operator, comma, backslash or a
-block header with no body.
+block header with no body. It is not called when the last line is prose, when a string is
+opened by an apostrophe in a sentence, when only comments follow the last code line, or
+when the parser's error lies above the last code line.
 
 **Scope analysis.** Written on the AST for this tool, following Python's name resolution:
 module and class bodies are read in order, function and lambda bodies after the enclosing
@@ -148,6 +156,10 @@ applies to (Python blocks, JSON blocks, fenced blocks, answers to a code request
 on), with a 95 % Wilson score interval:
 (p + z²/2n ± z·√(p(1−p)/n + z²/4n²)) / (1 + z²/n), z = 1.96.
 
+**Tests.** `uv run --extra dev pytest --cov=snippetcheck` runs 128 offline tests (fixtures
+built in the tests, nothing from them imported or executed) with 95 % line coverage of the
+package under Python 3.12; the same suite passes under 3.10.
+
 The datasets this is meant for are built in the ways described by Code Alpaca (Chaudhary
 2023, self-instruct for code), WizardCoder (Luo et al. 2023, Evol-Instruct for code) and
 Magicoder (Wei et al. 2023, OSS-Instruct). SelfCodeAlign (Wei et al. 2024) filters generated
@@ -170,8 +182,8 @@ results of models of code, which is why duplicate blocks are counted.
 
 ## Results on public data
 
-Two public code-instruction sets, checked with snippetcheck 0.1.0 under Python 3.12.13, bash
-3.2 and node 25.9 (macOS):
+Two public code-instruction sets, checked with snippetcheck under Python 3.12.13, bash 3.2
+and node 25.9 (macOS):
 
 ```
 bash scripts/fetch_data.sh data
@@ -180,56 +192,68 @@ snippetcheck check data/EvolInstruct-Code-80k.json --format json --jobs 8
 ```
 
 | | CodeAlpaca-20k | Evol-Instruct-Code-80k-v1 |
-|---|---:|---|
+|---|---|---|
 | records | 20,022 | 78,264 |
-| code blocks (fenced / indented / whole answer) | 12,948 (13 / 369 / 12,566) | 82,724 (54,882 / 514 / 27,328) |
-| Python blocks | 6,718 | 41,221 |
-| Python blocks that do not parse (`py-syntax`) | 311, 4.6 % (4.2 to 5.2 %) | 1,372, 3.3 % (3.2 to 3.5 %) |
-| Python 2 syntax (`py2-syntax`) | 9, 0.13 % (0.07 to 0.25 %) | 58, 0.14 % (0.11 to 0.18 %) |
-| parse but do not compile (`py-compile`) | 76, 1.1 % (0.9 to 1.4 %) | 103, 0.25 % (0.21 to 0.30 %) |
-| with an undefined name (`py-undefined-name`) | 1,026, 15.3 % (14.4 to 16.2 %) | 7,195, 17.5 % (17.1 to 17.8 %) |
-| with an unused import | 79, 1.2 % (0.9 to 1.5 %) | 838, 2.0 % (1.9 to 2.2 %) |
-| placeholders | 26, 0.39 % (0.26 to 0.57 %) | 178, 0.43 % (0.37 to 0.50 %) |
-| truncated, over all checked blocks | 34 of 10,802, 0.31 % (0.23 to 0.44 %) | 135 of 66,309, 0.20 % (0.17 to 0.24 %) |
-| unterminated fences | 0 of 13 | 120 of 54,882, 0.22 % (0.18 to 0.26 %) |
-| JSON blocks that do not parse | 4 of 236, 1.7 % | 36 of 1,778, 2.0 % |
-| `lang-mismatch` | 284 of 6,516, 4.4 % (3.9 to 4.9 %) | 795 of 32,649, 2.4 % (2.3 to 2.6 %) |
-| `no-code` | 1,699 of 9,179, 18.5 % (17.7 to 19.3 %) | 4,375 of 44,234, 9.9 % (9.6 to 10.2 %) |
-| `duplicate-block` | 65 of 12,948, 0.50 % | 598 of 82,724, 0.72 % |
+| code blocks (fenced / indented / whole answer) | 15,084 (13 / 3 / 15,068) | 86,003 (54,882 / 45 / 31,076) |
+| Python blocks | 8,223 | 43,361 |
+| Python blocks that do not parse (`py-syntax`) | 316, 3.8 % (3.4 to 4.3 %) | 1,353, 3.1 % (3.0 to 3.3 %) |
+| Python 2 syntax (`py2-syntax`) | 6, 0.07 % (0.03 to 0.16 %) | 24, 0.06 % (0.04 to 0.08 %) |
+| parse but do not compile (`py-compile`) | 14, 0.17 % (0.10 to 0.29 %) | 41, 0.09 % (0.07 to 0.13 %) |
+| with an undefined name (`py-undefined-name`) | 1,463, 17.8 % (17.0 to 18.6 %) | 7,749, 17.9 % (17.5 to 18.2 %) |
+| with an unused import | 87, 1.1 % (0.9 to 1.3 %) | 847, 2.0 % (1.8 to 2.1 %) |
+| placeholders | 26, 0.32 % (0.22 to 0.46 %) | 178, 0.41 % (0.35 to 0.48 %) |
+| truncated, over all checked blocks | 16 of 13,001, 0.12 % (0.08 to 0.20 %) | 67 of 68,790, 0.10 % (0.08 to 0.12 %) |
+| unterminated fences | 0 of 13, 0.00 % (0.00 to 22.81 %) | 120 of 54,882, 0.22 % (0.18 to 0.26 %) |
+| JSON blocks that do not parse | 4 of 236, 1.7 % (0.7 to 4.3 %) | 36 of 1,778, 2.0 % (1.5 to 2.8 %) |
+| `lang-mismatch` | 395 of 7,561, 5.2 % (4.7 to 5.7 %) | 932 of 34,368, 2.7 % (2.5 to 2.9 %) |
+| `duplicate-block` | 75 of 15,084, 0.50 % (0.40 to 0.62 %) | 633 of 86,003, 0.74 % (0.68 to 0.80 %) |
+| `shell-syntax` | 89 of 256, 34.8 % (29.2 to 40.8 %) | 188 of 1,335, 14.1 % (12.3 to 16.1 %) |
+| `js-syntax` | 222 of 2,006, 11.1 % (9.8 to 12.5 %) | 571 of 9,335, 6.1 % (5.6 to 6.6 %) |
 
-Intervals are 95 % Wilson intervals. Most common Python syntax errors, CodeAlpaca:
-`invalid syntax` 149, `expected an indented block after 'for' statement` 44, `... after 'if'
-statement` 29, `... after function definition` 18, `invalid non-printable character U+00A0` 9.
-Evol-Instruct: `invalid syntax` 805, `unterminated string literal` 236, `expected an indented
-block after 'for' statement` 56, `... after function definition` 53, `... after 'if'
-statement` 45. Most common undefined names: `arr`, `string`, `n`, `np`, `num` in CodeAlpaca;
-`Node`, `arr`, `np`, `TreeNode` in Evol-Instruct.
+Intervals are 95 % Wilson intervals. Most common Python syntax errors, CodeAlpaca: `invalid syntax` 150, `expected an indented block after 'for' statement` 44, `expected an indented block after 'if' statement` 30, `expected an indented block after function definition` 18, `unindent does not match any outer indentation level` 9.
+Evol-Instruct: `invalid syntax` 785, `unterminated string literal` 231, `expected an indented block after 'for' statement` 56, `expected an indented block after function definition` 53, `expected an indented block after 'if' statement` 46. Most common undefined names: `arr`, `string`, `my_list`, `array`, `np` in CodeAlpaca; `Node`, `np`, `arr`, `TreeNode`, `df`
+in Evol-Instruct. The `no-code` rule is left out of the table: its precision has not been
+measured since the extractor changed (see Limitations).
 
-**False positives of the undefined-name check.** 50 of the 1,978 undefined-name findings in
-CodeAlpaca were drawn at random (`python scripts/sample_flags.py
-data/code_alpaca_20k.json py-undefined-name --n 50 --seed 0`) and read one by one: for
-each, the prompt (instruction and input) and the numbered code were read and the flagged
-name looked up in both. The verdicts are in
+**False positives of the undefined-name check.** 50 of the 2,482 undefined-name findings
+in CodeAlpaca (in 1,463 blocks) were drawn at random (`python scripts/sample_flags.py data/code_alpaca_20k.json py-undefined-name
+--n 50 --seed 0`, which prints the prompt and the full answer with line numbers) and read one
+by one, the flagged name looked up in prompt and answer. The verdicts are in
 [results/codealpaca-undefined-sample.csv](results/codealpaca-undefined-sample.csv):
 
-- 1 of 50 (2 %, 95 % CI 0.4 to 10.5 %) is an error of the analysis: a pasted output line
-  `Output: [('a', 'b', 'c'), ...]` parses as an annotated assignment and the string `'c'` is
-  read as a forward-reference annotation.
-- 30 of 50 (60 %, 46 to 72 %) name a variable that the record's `input` field defines: the
-  flag is right about the code alone, but the record as a whole supplies the name.
-- 19 of 50 (38 %, 26 to 52 %) are undefined in prompt and code alike: missing imports (`re`,
-  `np`, `json`), helper classes never defined (`ListNode`, `Node`), function bodies without
-  their `def` line, and one loop dedented out of its function by mistake.
+- 1 of 50 (2 %, 95 % CI 0.4 to 10.5 %) is a tool error: an answer written in JavaScript
+  object notation (`{num: 1}`) parses as Python and is read as Python.
+- 34 of 50 (68 %, 54.2 to 79.2 %) name a variable that the record's `input` field defines:
+  the flag is right about the answer alone, but the record as a whole supplies the name.
+- 15 of 50 (30 %, 19.1 to 43.8 %) are undefined in prompt and answer alike: modules used
+  without an import (`datetime`, `math`, `tf`, `keras`, `urllib`, `string`), and helpers,
+  models or data that are never defined.
+
+All 50 sampled blocks are whole answers. A first sample, drawn before the extractor took
+unfenced answers whole, held at least 9 tool errors in 50: indented function bodies cut out of
+their answers, so names the rest of the answer defined looked undefined.
+
+**Truncation flags.** All 13 CodeAlpaca truncation flags from the Python, JSON and bracket
+checks (the 3 from bash and node are not included) were read one by one (`python
+scripts/sample_flags.py data/code_alpaca_20k.json truncated --n 50 --seed 0 --no-external`;
+[results/codealpaca-truncated-read.csv](results/codealpaca-truncated-read.csv)). 8 of 13
+(62 %, 95 % CI 35.5 to 82.3 %) are code that stops before its end (cut inside a literal or
+after `=`, a final closing brace missing). The other 5 are a missing-parenthesis typo, a
+syntax template, an answer that is only a signature, an apostrophe in an output comment and
+a string left open in the prompt itself. The Evol-Instruct flags were not read.
 
 **Agreement with pyflakes.** On every Python block that parses, the (name, line) sets of
 undefined names were compared with pyflakes 4.1.0
 (`python scripts/pyflakes_agreement.py data/code_alpaca_20k.json data/EvolInstruct-Code-80k.json`):
-they are equal on 6,396 of 6,407 CodeAlpaca blocks (99.83 %) and 39,826 of 39,849
-Evol-Instruct blocks (99.94 %); unused imports agree on all of them. In every disagreeing block
-snippetcheck reports a name pyflakes does not; those 34 blocks were not read by hand. On the
-69 small programs of `tests/scope_corpus.py` the two agree on all but one, a comprehension in a
-class body that reads a class variable: Python raises `NameError` there and snippetcheck
-reports it, pyflakes does not.
+
+```
+code_alpaca_20k.json: 7906 parsing Python blocks; undefined names agree on 7903 (99.96 %), unused imports agree on 7906 (100.00 %); blocks with a name only snippetcheck reports: 3, only pyflakes reports: 0
+EvolInstruct-Code-80k.json: 42007 parsing Python blocks; undefined names agree on 41992 (99.96 %), unused imports agree on 42007 (100.00 %); blocks with a name only snippetcheck reports: 15, only pyflakes reports: 0
+```
+
+The disagreeing blocks were not read. On the 69 small programs of `tests/scope_corpus.py` the
+two agree on all but one, a comprehension in a class body that reads a class variable: Python
+raises `NameError` there and snippetcheck reports it, pyflakes does not.
 
 **Data and licences.** CodeAlpaca-20k (sahil2801/CodeAlpaca-20k on the Hugging Face hub,
 `code_alpaca_20k.json`, sha256 `58d136bb...210e`) is CC BY 4.0 on its card. Evol-Instruct-Code-80k-v1
@@ -239,20 +263,27 @@ downloads both, and only ids, names and counts derived from them are committed.
 
 ## Limitations
 
-- The undefined-name check reads the code alone. In Alpaca-style data most of its findings
-  are variables the `input` field defines (60 % of the sample above); there is no option yet
-  to count names bound in the prompt as defined.
-- The language guess is a keyword score. In both datasets most `js-syntax` findings are
-  `Unexpected token '<'` (206 in CodeAlpaca, 1,708 in Evol-Instruct): HTML or JSX answers
-  routed to `node --check`. The `shell-syntax` shares (35 % and 14 %) were not read by hand
-  and likely include blocks the guess sent to bash wrongly. `no-code` depends on the
-  whole-answer detection; short one-line answers such as `x = 5` are not taken as code, which
-  inflates it, and it was not read by hand either.
+- The undefined-name check reads the code alone. In the CodeAlpaca sample above 68 % of its
+  findings are variables the `input` field defines; there is no option yet to count names
+  bound in the prompt as defined.
+- Precision has not been measured by reading for `lang-mismatch`, `shell-syntax`,
+  `js-syntax`, `duplicate-block`, `placeholder` and `no-code`. 16 of the
+  26 CodeAlpaca placeholder flags are an `__init__` whose
+  body is `pass`. An earlier reading of 25 `no-code` flags found 22 answers that were code
+  the extractor missed (Ruby, C, SQL, CSS, Perl and others); more languages are recognised
+  now, but the rule has not been read again, so `--drop no-code` can delete good records.
+- The language guess is a keyword score. `Unexpected token '<'` is still among the
+  `js-syntax` messages (42 in CodeAlpaca, 228 in Evol-Instruct): markup the guess
+  did not recognise. The `shell-syntax` shares (35 % and 14 %) likely include
+  blocks sent to bash wrongly.
 - The Python grammar is that of the interpreter running snippetcheck: a 3.10 run rejects
   syntax that only 3.12 accepts (such as reusing the outer quote inside an f-string), and
   error messages differ between versions.
 - Truncation is only called when a block also fails to parse, so a snippet cut at a statement
   boundary is not detected (an unterminated fence still is).
+- The scope analysis does not unbind a name after `del x`, nor an `except ... as e` name after
+  its block, and does not report undefined names listed in `__all__`; pyflakes does all three.
+- Fences inside block quotes (`> ```python`) are not extracted.
 - Bracket balance for the other languages is a lexical scan, not a parse; Rust lifetimes are
   handled by not treating `'` as a quote in Rust.
 - `bash -n` is bash's grammar, so zsh-only syntax is reported; the run above used macOS
